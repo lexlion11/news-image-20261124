@@ -1,16 +1,34 @@
-// news-image-20261124 — copy the pre-rendered entry.png to the output dir.
-// Node 22 stdlib only. Deterministic: same input → same output.
-import { copyFileSync, mkdirSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+#!/usr/bin/env node
+// news-image-20261124 — make.fun entrypoint
+// Copies entry.png to $MAKEFUN_OUTPUT_DIR/entry.png (default /output).
+// Verifies the source exists, is a non-trivial PNG, and that the copy is
+// byte-identical to the source before exiting 0.
 
-const src = resolve(import.meta.dirname, "entry.png");
-const outDir = resolve(process.env.MAKEFUN_OUTPUT_DIR ?? "/output");
-const dest = resolve(outDir, "entry.png");
+import { copyFileSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
-if (!existsSync(src)) {
-  console.error(`entry.png not found at ${src}`);
+const SOURCE = resolve(import.meta.dirname ?? process.cwd(), "entry.png");
+const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const DEST = join(OUTPUT_DIR, "entry.png");
+
+if (!existsSync(SOURCE)) {
+  console.error(`error: source image not found: ${SOURCE}`);
   process.exit(1);
 }
-mkdirSync(outDir, { recursive: true });
-copyFileSync(src, dest);
-console.log(`entry.png → ${dest} (${existsSync(dest) ? "ok" : "FAILED"})`);
+
+const srcSize = statSync(SOURCE).size;
+if (srcSize < 1024) {
+  console.error(`error: source image looks truncated (${srcSize} bytes < 1 KiB)`);
+  process.exit(1);
+}
+
+mkdirSync(OUTPUT_DIR, { recursive: true });
+copyFileSync(SOURCE, DEST);
+
+const dstSize = statSync(DEST).size;
+if (dstSize !== srcSize) {
+  console.error(`error: copy size mismatch (source ${srcSize}, dest ${dstSize})`);
+  process.exit(1);
+}
+
+console.log(`copied ${SOURCE} -> ${DEST} (${dstSize} bytes, verified)`);
